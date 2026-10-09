@@ -42,29 +42,53 @@ final class Write_Guard {
 	private const BLOCK_DELIMITER = '/<!--\s+(?P<closer>\/)?wp:(?P<namespace>[a-z][a-z0-9_-]*\/)?(?P<name>[a-z][a-z0-9_-]*)\s+(?P<attrs>{(?:(?:[^}]+|}+(?=})|(?!}\s+\/?-->).)*+)?}\s+)?(?P<void>\/)?-->/s';
 
 	/**
+	 * Returns a token that changes whenever anything a caller can edit changes.
+	 *
+	 * `post_modified_gmt` alone is not enough: it has one-second resolution and
+	 * stays at zero on a new draft until its first update.
+	 *
+	 * @param WP_Post $post Post.
+	 *
+	 * @return string
+	 */
+	public static function version( WP_Post $post ): string {
+		$state = array(
+			$post->post_modified_gmt,
+			$post->post_status,
+			$post->post_title,
+			$post->post_content,
+			$post->post_excerpt,
+			wp_get_post_terms( $post->ID, get_object_taxonomies( $post->post_type ), array( 'fields' => 'ids' ) ),
+		);
+
+		return substr( hash( 'sha256', (string) wp_json_encode( $state ) ), 0, 16 );
+	}
+
+	/**
 	 * Refuses the write when the post changed after the caller last read it.
 	 *
 	 * @param WP_Post $post     Post about to be written.
-	 * @param mixed   $expected The `modified_gmt` value the caller read.
+	 * @param mixed   $expected The `version` value the caller read.
 	 *
 	 * @return WP_Error|null
 	 */
-	public static function check_modified( WP_Post $post, mixed $expected ): ?WP_Error {
+	public static function check_version( WP_Post $post, mixed $expected ): ?WP_Error {
 		if ( ! is_string( $expected ) || '' === $expected ) {
 			return new WP_Error(
-				'jcore_taika_missing_expected_modified',
-				__( 'Pass expected_modified with the modified_gmt value from get-post, so changes made by others are not overwritten.', 'jcore-taika' ),
+				'jcore_taika_missing_expected_version',
+				__( 'Pass expected_version with the version value from get-post, so changes made by others are not overwritten.', 'jcore-taika' ),
 				array( 'status' => 400 )
 			);
 		}
 
-		if ( $post->post_modified_gmt !== $expected ) {
+		$version = self::version( $post );
+		if ( ! hash_equals( $version, $expected ) ) {
 			return new WP_Error(
 				'jcore_taika_post_changed',
 				__( 'The post changed after it was read. Fetch it again, reapply the changes and retry.', 'jcore-taika' ),
 				array(
-					'status'       => 409,
-					'modified_gmt' => $post->post_modified_gmt,
+					'status'  => 409,
+					'version' => $version,
 				)
 			);
 		}

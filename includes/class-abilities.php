@@ -112,7 +112,7 @@ final class Abilities {
 			'get-post',
 			array(
 				'label'               => __( 'Get post', 'jcore-taika' ),
-				'description'         => __( 'Returns one post or page with its full content as block markup, plus modified_gmt. Keep the <!-- wp:... --> block comments when editing, and pass modified_gmt as expected_modified to update-post or publish-post.', 'jcore-taika' ),
+				'description'         => __( 'Returns one post or page with its full content as block markup, plus a version token. Keep the <!-- wp:... --> block comments when editing, and pass version as expected_version to update-post or publish-post.', 'jcore-taika' ),
 				'input_schema'        => self::object_schema( array( 'id' => self::id_schema() ), array( 'id' ) ),
 				'output_schema'       => self::post_detail_schema(),
 				'execute_callback'    => array( Posts::class, 'get_post' ),
@@ -171,14 +171,14 @@ final class Abilities {
 			'update-post',
 			array(
 				'label'               => __( 'Update draft', 'jcore-taika' ),
-				'description'         => __( 'Changes a post or page that is not live yet. Only the fields given are changed. Refuses published posts: use publish-post for those. Fetch the post first and pass its modified_gmt as expected_modified.', 'jcore-taika' ),
+				'description'         => __( 'Changes a post or page that is not live yet. Only the fields given are changed. Refuses published posts: use publish-post for those. Fetch the post first and pass its version as expected_version.', 'jcore-taika' ),
 				'input_schema'        => self::object_schema(
 					array(
-						'id'                => self::id_schema(),
-						'expected_modified' => self::expected_modified_schema(),
-						'status'            => self::draft_status_schema(),
+						'id'               => self::id_schema(),
+						'expected_version' => self::expected_version_schema(),
+						'status'           => self::draft_status_schema(),
 					) + self::content_fields(),
-					array( 'id', 'expected_modified' )
+					array( 'id', 'expected_version' )
 				),
 				'output_schema'       => self::post_detail_schema(),
 				'execute_callback'    => array( Posts::class, 'update_post' ),
@@ -191,13 +191,13 @@ final class Abilities {
 			'publish-post',
 			array(
 				'label'               => __( 'Publish post', 'jcore-taika' ),
-				'description'         => __( 'Makes a draft visible to visitors, or applies the given changes to a post that is already live. Confirm with the user before calling. Pass the post\'s modified_gmt as expected_modified.', 'jcore-taika' ),
+				'description'         => __( 'Makes a draft visible to visitors, or applies the given changes to a post that is already live. Confirm with the user before calling. Pass the post\'s version as expected_version.', 'jcore-taika' ),
 				'input_schema'        => self::object_schema(
 					array(
-						'id'                => self::id_schema(),
-						'expected_modified' => self::expected_modified_schema(),
+						'id'               => self::id_schema(),
+						'expected_version' => self::expected_version_schema(),
 					) + self::content_fields(),
-					array( 'id', 'expected_modified' )
+					array( 'id', 'expected_version' )
 				),
 				'output_schema'       => self::post_detail_schema(),
 				'execute_callback'    => array( Posts::class, 'publish_post' ),
@@ -369,10 +369,10 @@ final class Abilities {
 	 *
 	 * @return array<string, mixed>
 	 */
-	private static function expected_modified_schema(): array {
+	private static function expected_version_schema(): array {
 		return array(
 			'type'        => 'string',
-			'description' => __( 'The modified_gmt value from get-post. The write is refused if the post changed since.', 'jcore-taika' ),
+			'description' => __( 'The version value from get-post. The write is refused if the post changed since.', 'jcore-taika' ),
 		);
 	}
 
@@ -431,6 +431,7 @@ final class Abilities {
 		$schema = self::post_summary_schema();
 
 		$schema['properties'] += array(
+			'version'    => array( 'type' => 'string' ),
 			'content'    => array( 'type' => 'string' ),
 			'excerpt'    => array( 'type' => 'string' ),
 			'has_blocks' => array( 'type' => 'boolean' ),
