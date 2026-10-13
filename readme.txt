@@ -12,7 +12,7 @@ Lets invited users read, draft and publish posts from AI assistants through the 
 
 == Description ==
 
-Taika lets the people who edit this site work on posts and pages from an AI assistant such as Claude. They connect through the bojaco MCP gateway, link this site once from their WordPress profile, and from then on the assistant acts as their own WordPress user: it can do exactly what their role allows, and every change shows up under their name in the revision history.
+Taika lets the people who edit this site work on posts and pages from an AI assistant such as Claude. They connect through the bojaco MCP gateway and link this site once from the Taika dashboard, approving it here in WordPress. From then on the assistant acts as their own WordPress user: it can do exactly what their role allows, and every change shows up under their name in the revision history.
 
 Taika is a paid add-on from J&Co Digital. Ask us to enable it for your site.
 
@@ -23,7 +23,7 @@ Taika is a paid add-on from J&Co Digital. Ask us to enable it for your site.
 * **Publish** as a separate step that the assistant asks you to confirm.
 * **Upload media** from a web address into the media library.
 * **Safe edits** – a change is refused if the post was edited by someone else in the meantime, if someone has it open in the editor, or if it would break the block layout.
-* **Revoke any time** – remove the "bojaco MCP" application password from your profile under Users → Profile.
+* **Revoke any time** – remove the "Taika (bojaco MCP)" application password from your profile under Users → Profile.
 * **Automatic updates** – through the J&Co Digital update service.
 
 = External services =
