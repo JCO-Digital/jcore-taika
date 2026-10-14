@@ -416,7 +416,7 @@ final class Abilities {
 				'title'        => array( 'type' => 'string' ),
 				'status'       => array( 'type' => 'string' ),
 				'author'       => array( 'type' => 'string' ),
-				'modified_gmt' => array( 'type' => 'string' ),
+				'modified_gmt' => array( 'type' => array( 'string', 'null' ) ),
 				'link'         => array( 'type' => 'string' ),
 			),
 		);

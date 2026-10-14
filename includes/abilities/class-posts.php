@@ -486,7 +486,8 @@ final class Posts {
 			'title'        => $post->post_title,
 			'status'       => $post->post_status,
 			'author'       => $author ? $author->display_name : '',
-			'modified_gmt' => $post->post_modified_gmt,
+			// WordPress leaves this at zero on a new draft until its first update.
+			'modified_gmt' => '0000-00-00 00:00:00' === $post->post_modified_gmt ? null : $post->post_modified_gmt,
 			'link'         => (string) get_permalink( $post ),
 		);
 	}
