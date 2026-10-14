@@ -4,7 +4,7 @@ Tags: jcore
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -43,3 +43,9 @@ The readable source of the built assets is published at https://github.com/JCO-D
 
 == Changelog ==
 
+= 0.2.0 =
+
+* Feature: abilities - read, draft and publish posts through the Abilities API
+* Fix: abilities - return null modified_gmt for unsaved drafts
+* Fix: abilities - accept IDs from query strings and lock on a content version
+* Documentation: readme - name the application password as the dashboard creates it

@@ -1,6 +1,6 @@
 {
   "name": "jcore-taika",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lets invited users read, draft and publish posts from AI assistants through the bojaco MCP gateway.",
   "author": "J&Co Digital Oy <support@jco.fi>",
   "license": "GPL-2.0-or-later",
