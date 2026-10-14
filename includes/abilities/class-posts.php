@@ -284,7 +284,7 @@ final class Posts {
 	 * @return WP_Error|null
 	 */
 	private static function check_write( WP_Post $post, array $input ): ?WP_Error {
-		$error = Write_Guard::check_modified( $post, $input['expected_modified'] ?? null )
+		$error = Write_Guard::check_version( $post, $input['expected_version'] ?? null )
 			?? Write_Guard::check_lock( $post )
 			?? self::check_terms( $post->post_type, $input );
 
@@ -415,11 +415,18 @@ final class Posts {
 	 * @return WP_Post|null
 	 */
 	private static function find( mixed $input ): ?WP_Post {
-		if ( ! is_array( $input ) || ! isset( $input['id'] ) || ! is_int( $input['id'] ) ) {
+		if ( ! is_array( $input ) || ! isset( $input['id'] ) ) {
 			return null;
 		}
 
-		$post = get_post( $input['id'] );
+		// Read-only abilities are called over REST with GET, so the ID arrives
+		// as a query-string value: "42", not 42.
+		$id = filter_var( $input['id'], FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+		if ( false === $id ) {
+			return null;
+		}
+
+		$post = get_post( $id );
 
 		return $post instanceof WP_Post && in_array( $post->post_type, self::POST_TYPES, true ) ? $post : null;
 	}
@@ -479,7 +486,8 @@ final class Posts {
 			'title'        => $post->post_title,
 			'status'       => $post->post_status,
 			'author'       => $author ? $author->display_name : '',
-			'modified_gmt' => $post->post_modified_gmt,
+			// WordPress leaves this at zero on a new draft until its first update.
+			'modified_gmt' => '0000-00-00 00:00:00' === $post->post_modified_gmt ? null : $post->post_modified_gmt,
 			'link'         => (string) get_permalink( $post ),
 		);
 	}
@@ -493,6 +501,7 @@ final class Posts {
 	 */
 	private static function detail( WP_Post $post ): array {
 		$detail = self::summary( $post ) + array(
+			'version'    => Write_Guard::version( $post ),
 			'content'    => $post->post_content,
 			'excerpt'    => $post->post_excerpt,
 			'has_blocks' => has_blocks( $post->post_content ),

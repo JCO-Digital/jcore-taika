@@ -66,7 +66,7 @@ Registered with the WordPress Abilities API under the `jcore-taika` category, sh
 | `jcore-taika/publish-post` | destructive | `edit_post` + `publish_posts` |
 | `jcore-taika/upload-media` | write | `upload_files` |
 
-Writes to an existing post need `expected_modified` (the `modified_gmt` from `get-post`) and are refused when the post changed since, is locked in the editor, or the block markup would break (`Write_Guard`). Names and schemas are a public contract: add fields, never rename or remove them.
+Writes to an existing post need `expected_version` (the `version` from `get-post`, a hash of everything the abilities can edit) and are refused when the post changed since, is locked in the editor, or the block markup would break (`Write_Guard`). Names and schemas are a public contract: add fields, never rename or remove them.
 
 ## REST API
 
