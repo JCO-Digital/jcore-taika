@@ -260,10 +260,12 @@ final class Abilities {
 		$args['meta']     = array(
 			'show_in_rest' => true,
 			'annotations'  => $annotations,
-			// Lets the MCP Adapter on a single site expose the same tools directly.
+			// Not offered to the MCP Adapter: Taika's tools are reached only through
+			// the gateway at mcp.bojaco.com, which checks invitations and plans, rate
+			// limits and audits every call. A site that also runs the adapter would
+			// otherwise expose them to anyone with a login, bypassing all of that.
 			'mcp'          => array(
-				'public' => true,
-				'type'   => 'tool',
+				'public' => false,
 			),
 		);
 

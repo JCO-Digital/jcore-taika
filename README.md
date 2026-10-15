@@ -54,7 +54,7 @@ languages/      .po sources; .pot, .mo and .json are generated
 
 ## Abilities
 
-Registered with the WordPress Abilities API under the `jcore-taika` category, shown at `/wp-json/wp-abilities/v1/` and to the MCP Adapter. The gateway at `mcp.bojaco.com` calls them with the linked user's Application Password and an `X-Taika-Request-Id` header, which is stored on written posts as `_jcore_taika_request_id`.
+Registered with the WordPress Abilities API under the `jcore-taika` category, shown at `/wp-json/wp-abilities/v1/`. They are deliberately not offered to the MCP Adapter (`meta.mcp.public` is false): clients reach them only through the gateway. The gateway at `mcp.bojaco.com` calls them with the linked user's Application Password and an `X-Taika-Request-Id` header, which is stored on written posts as `_jcore_taika_request_id`.
 
 | Ability | Kind | Capability |
 | --- | --- | --- |
