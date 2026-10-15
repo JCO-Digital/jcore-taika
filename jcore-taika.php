@@ -3,7 +3,7 @@
  * Plugin Name:       JCORE Taika
  * Plugin URI:        https://github.com/JCO-Digital/jcore-taika
  * Description:       Lets invited users read, draft and publish posts from AI assistants through the bojaco MCP gateway.
- * Version:           0.2.1
+ * Version:           0.3.0
  * Requires at least: 6.9
  * Tested up to:      7.1
  * Requires PHP:      8.2
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // foonver rewrites this along with the header on every release.
-define( 'JCORE_TAIKA_VERSION', '0.2.1' );
+define( 'JCORE_TAIKA_VERSION', '0.3.0' );
 define( 'JCORE_TAIKA_FILE', __FILE__ );
 define( 'JCORE_TAIKA_PATH', plugin_dir_path( __FILE__ ) );
 define( 'JCORE_TAIKA_URL', plugin_dir_url( __FILE__ ) );
