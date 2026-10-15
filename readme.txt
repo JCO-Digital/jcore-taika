@@ -4,7 +4,7 @@ Tags: jcore
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -43,7 +43,11 @@ The readable source of the built assets is published at https://github.com/JCO-D
 
 == Changelog ==
 
-= 0.2.0 =
+= 0.2.1 (2026-10-15) =
+
+* Fix: abilities - stop offering abilities to the MCP Adapter
+
+= v0.2.0 (2026-10-14) =
 
 * Feature: abilities - read, draft and publish posts through the Abilities API
 * Fix: abilities - return null modified_gmt for unsaved drafts
