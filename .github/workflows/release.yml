@@ -51,7 +51,9 @@ jobs:
         run: |
           composer install --no-dev --no-interaction --prefer-dist
           mkdir -p dist/jcore-taika
-          rsync -a --exclude-from=.distignore --exclude=dist ./ dist/jcore-taika/
+          # .distignore lists what not to ship but doesn't list itself; it never
+          # reaches the release zip, so leave it out of what Plugin Check sees too.
+          rsync -a --exclude-from=.distignore --exclude=.distignore --exclude=dist ./ dist/jcore-taika/
 
       # vendor/ holds the jcore-update library, which is not ours to check.
       - name: Plugin Check
