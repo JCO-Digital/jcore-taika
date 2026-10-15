@@ -385,21 +385,26 @@ final class Abilities {
 	 */
 	private static function content_fields(): array {
 		return array(
-			'title'      => array( 'type' => 'string' ),
-			'content'    => array(
+			'title'          => array( 'type' => 'string' ),
+			'content'        => array(
 				'type'        => 'string',
 				'description' => __( 'Post content as block markup.', 'jcore-taika' ),
 			),
-			'excerpt'    => array( 'type' => 'string' ),
-			'categories' => array(
+			'excerpt'        => array( 'type' => 'string' ),
+			'categories'     => array(
 				'type'        => 'array',
 				'items'       => array( 'type' => 'integer' ),
 				'description' => __( 'Category IDs from list-terms. Replaces the current categories. Posts only.', 'jcore-taika' ),
 			),
-			'tags'       => array(
+			'tags'           => array(
 				'type'        => 'array',
 				'items'       => array( 'type' => 'string' ),
 				'description' => __( 'Tag names; new ones are created. Replaces the current tags. Posts only.', 'jcore-taika' ),
+			),
+			'featured_media' => array(
+				'type'        => 'integer',
+				'minimum'     => 0,
+				'description' => __( 'Attachment ID of an image from upload-media to use as the featured image. 0 removes it.', 'jcore-taika' ),
 			),
 		);
 	}
@@ -433,15 +438,19 @@ final class Abilities {
 		$schema = self::post_summary_schema();
 
 		$schema['properties'] += array(
-			'version'    => array( 'type' => 'string' ),
-			'content'    => array( 'type' => 'string' ),
-			'excerpt'    => array( 'type' => 'string' ),
-			'has_blocks' => array( 'type' => 'boolean' ),
-			'categories' => array(
+			'version'        => array( 'type' => 'string' ),
+			'content'        => array( 'type' => 'string' ),
+			'excerpt'        => array( 'type' => 'string' ),
+			'has_blocks'     => array( 'type' => 'boolean' ),
+			'featured_media' => array(
+				'type'        => 'integer',
+				'description' => __( 'Attachment ID of the featured image, or 0 when there is none.', 'jcore-taika' ),
+			),
+			'categories'     => array(
 				'type'  => 'array',
 				'items' => array( 'type' => 'integer' ),
 			),
-			'tags'       => array(
+			'tags'           => array(
 				'type'  => 'array',
 				'items' => array( 'type' => 'string' ),
 			),

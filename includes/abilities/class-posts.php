@@ -149,7 +149,9 @@ final class Posts {
 		$type    = self::post_type( $input );
 		$content = isset( $input['content'] ) && is_string( $input['content'] ) ? $input['content'] : '';
 
-		$error = Write_Guard::check_content( $content ) ?? self::check_terms( $type, $input );
+		$error = Write_Guard::check_content( $content )
+			?? self::check_terms( $type, $input )
+			?? self::check_featured_media( $type, $input );
 		if ( null !== $error ) {
 			return $error;
 		}
@@ -173,6 +175,7 @@ final class Posts {
 		}
 
 		self::assign_terms( $post_id, $input );
+		self::assign_featured_media( $post_id, $input );
 		Write_Guard::mark( $post_id );
 
 		return self::detail( get_post( $post_id ) );
@@ -260,7 +263,7 @@ final class Posts {
 		$changes = self::content_changes( $input );
 
 		if ( in_array( $post->post_status, self::LIVE_STATUSES, true ) ) {
-			if ( array() === $changes && ! isset( $input['categories'] ) && ! isset( $input['tags'] ) ) {
+			if ( array() === $changes && ! isset( $input['categories'] ) && ! isset( $input['tags'] ) && ! isset( $input['featured_media'] ) ) {
 				return new WP_Error(
 					'jcore_taika_nothing_to_publish',
 					__( 'The post is already live and no changes were given.', 'jcore-taika' ),
@@ -286,7 +289,8 @@ final class Posts {
 	private static function check_write( WP_Post $post, array $input ): ?WP_Error {
 		$error = Write_Guard::check_version( $post, $input['expected_version'] ?? null )
 			?? Write_Guard::check_lock( $post )
-			?? self::check_terms( $post->post_type, $input );
+			?? self::check_terms( $post->post_type, $input )
+			?? self::check_featured_media( $post->post_type, $input );
 
 		if ( null === $error && isset( $input['content'] ) && is_string( $input['content'] ) ) {
 			$error = Write_Guard::check_content( $input['content'], $post );
@@ -300,7 +304,7 @@ final class Posts {
 	 *
 	 * @param WP_Post              $post    Post to update.
 	 * @param array<string, mixed> $changes `wp_update_post()` fields, without the ID.
-	 * @param array<string, mixed> $input   Ability input, for terms.
+	 * @param array<string, mixed> $input   Ability input, for terms and the featured image.
 	 *
 	 * @return array<string, mixed>|WP_Error
 	 */
@@ -315,6 +319,7 @@ final class Posts {
 		}
 
 		self::assign_terms( $post->ID, $input );
+		self::assign_featured_media( $post->ID, $input );
 		Write_Guard::mark( $post->ID );
 
 		return self::detail( get_post( $post->ID ) );
@@ -404,6 +409,64 @@ final class Posts {
 
 		if ( isset( $input['tags'] ) && is_array( $input['tags'] ) ) {
 			wp_set_post_terms( $post_id, array_map( 'sanitize_text_field', $input['tags'] ), 'post_tag' );
+		}
+	}
+
+	/**
+	 * Refuses a featured image on a type without them, or that is not an image.
+	 *
+	 * @param string               $post_type Post type being written.
+	 * @param array<string, mixed> $input     Ability input.
+	 *
+	 * @return WP_Error|null
+	 */
+	private static function check_featured_media( string $post_type, array $input ): ?WP_Error {
+		if ( ! isset( $input['featured_media'] ) ) {
+			return null;
+		}
+
+		if ( ! post_type_supports( $post_type, 'thumbnail' ) ) {
+			return new WP_Error(
+				'jcore_taika_featured_media_not_supported',
+				__( 'This post type does not use featured images.', 'jcore-taika' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$attachment_id = (int) $input['featured_media'];
+		if ( 0 === $attachment_id ) {
+			return null;
+		}
+
+		if ( ! wp_attachment_is_image( $attachment_id ) || ! current_user_can( 'read_post', $attachment_id ) ) {
+			return new WP_Error(
+				'jcore_taika_invalid_featured_media',
+				__( 'featured_media must be the ID of an image in the media library. Use upload-media to add one.', 'jcore-taika' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Sets or removes the featured image when the input has one.
+	 *
+	 * @param int                  $post_id Post ID.
+	 * @param array<string, mixed> $input   Ability input, already checked by `check_featured_media()`.
+	 *
+	 * @return void
+	 */
+	private static function assign_featured_media( int $post_id, array $input ): void {
+		if ( ! isset( $input['featured_media'] ) ) {
+			return;
+		}
+
+		$attachment_id = (int) $input['featured_media'];
+		if ( 0 === $attachment_id ) {
+			delete_post_thumbnail( $post_id );
+		} else {
+			set_post_thumbnail( $post_id, $attachment_id );
 		}
 	}
 
@@ -501,10 +564,11 @@ final class Posts {
 	 */
 	private static function detail( WP_Post $post ): array {
 		$detail = self::summary( $post ) + array(
-			'version'    => Write_Guard::version( $post ),
-			'content'    => $post->post_content,
-			'excerpt'    => $post->post_excerpt,
-			'has_blocks' => has_blocks( $post->post_content ),
+			'version'        => Write_Guard::version( $post ),
+			'content'        => $post->post_content,
+			'excerpt'        => $post->post_excerpt,
+			'has_blocks'     => has_blocks( $post->post_content ),
+			'featured_media' => (int) get_post_thumbnail_id( $post ),
 		);
 
 		if ( is_object_in_taxonomy( $post->post_type, 'category' ) ) {

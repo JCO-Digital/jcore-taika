@@ -21,7 +21,7 @@ Taika is a paid add-on from J&Co Digital. Ask us to enable it for your site.
 * **Read** posts, pages, categories and tags.
 * **Draft** new posts and pages, and edit drafts. Nothing becomes visible to visitors until it is published.
 * **Publish** as a separate step that the assistant asks you to confirm.
-* **Upload media** from a web address into the media library.
+* **Upload media** from a web address into the media library, and set it as a post's featured image.
 * **Safe edits** – a change is refused if the post was edited by someone else in the meantime, if someone has it open in the editor, or if it would break the block layout.
 * **Revoke any time** – remove the "Taika (bojaco MCP)" application password from your profile under Users → Profile.
 * **Automatic updates** – through the J&Co Digital update service.
