@@ -58,6 +58,8 @@ final class Write_Guard {
 			$post->post_title,
 			$post->post_content,
 			$post->post_excerpt,
+			$post->post_name,
+			(int) $post->post_parent,
 			(int) get_post_thumbnail_id( $post ),
 			wp_get_post_terms( $post->ID, get_object_taxonomies( $post->post_type ), array( 'fields' => 'ids' ) ),
 		);
