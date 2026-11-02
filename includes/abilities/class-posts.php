@@ -26,9 +26,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Posts {
 
 	/**
-	 * Post types the abilities work on.
+	 * Post types the abilities work on unless the site opts more in.
 	 */
-	public const POST_TYPES = array( 'post', 'page' );
+	public const DEFAULT_POST_TYPES = array( 'post', 'page' );
 
 	/**
 	 * Statuses a draft-level write may set.
@@ -400,7 +400,7 @@ final class Posts {
 		if ( ! is_post_type_hierarchical( $post_type ) ) {
 			return new WP_Error(
 				'jcore_taika_parent_not_supported',
-				__( 'Only pages can have a parent page.', 'jcore-taika' ),
+				__( 'Only pages, and other hierarchical post types, can have a parent.', 'jcore-taika' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -419,7 +419,7 @@ final class Posts {
 		) {
 			return new WP_Error(
 				'jcore_taika_invalid_parent',
-				__( 'parent must be the ID of an existing page. Use list-posts with post_type page to find it.', 'jcore-taika' ),
+				__( 'parent must be the ID of an existing post of the same type, for example a page. Use list-posts with that post_type to find it.', 'jcore-taika' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -577,7 +577,7 @@ final class Posts {
 
 		$post = get_post( $id );
 
-		return $post instanceof WP_Post && in_array( $post->post_type, self::POST_TYPES, true ) ? $post : null;
+		return $post instanceof WP_Post && in_array( $post->post_type, self::post_types(), true ) ? $post : null;
 	}
 
 	/**
@@ -590,7 +590,46 @@ final class Posts {
 	private static function post_type( mixed $input ): string {
 		$type = is_array( $input ) ? ( $input['post_type'] ?? 'post' ) : 'post';
 
-		return in_array( $type, self::POST_TYPES, true ) ? $type : 'post';
+		return in_array( $type, self::post_types(), true ) ? $type : 'post';
+	}
+
+	/**
+	 * Post types the abilities work on: post and page, plus any custom post
+	 * types the site opts in with the `jcore_taika_post_types` filter.
+	 *
+	 * WordPress's own internal types (attachments, templates, menus, …) and
+	 * types without an admin screen are always left out, whatever the filter
+	 * returns.
+	 *
+	 * @return string[]
+	 */
+	public static function post_types(): array {
+		/**
+		 * Filters the post types Taika's post abilities work on.
+		 *
+		 * A site's theme or a mu-plugin opts custom post types in:
+		 *
+		 *     add_filter( 'jcore_taika_post_types', fn( $types ) => [ ...$types, 'event' ] );
+		 *
+		 * @since 0.5.0
+		 *
+		 * @param string[] $post_types Post type names. Default post and page.
+		 */
+		$types = apply_filters( 'jcore_taika_post_types', self::DEFAULT_POST_TYPES );
+		$types = is_array( $types ) ? array_values( array_unique( array_filter( $types, 'is_string' ) ) ) : self::DEFAULT_POST_TYPES;
+
+		return array_values(
+			array_filter(
+				$types,
+				static function ( string $name ): bool {
+					$type = get_post_type_object( $name );
+
+					return null !== $type
+						&& $type->show_ui
+						&& ( ! $type->_builtin || in_array( $name, self::DEFAULT_POST_TYPES, true ) );
+				}
+			)
+		);
 	}
 
 	/**

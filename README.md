@@ -65,6 +65,15 @@ Registered with the WordPress Abilities API under the `jcore-taika` category, sh
 | `jcore-taika/update-post` | write, refuses live posts | `edit_post` |
 | `jcore-taika/publish-post` | destructive | `edit_post` + `publish_posts` |
 | `jcore-taika/upload-media` | write | `upload_files` |
+| `jcore-taika/describe-site` | read | `edit_posts` for at least one supported type |
+
+The post abilities work on posts and pages, plus custom post types a site opts in from its theme or a mu-plugin:
+
+```php
+add_filter( 'jcore_taika_post_types', fn( array $types ) => [ ...$types, 'event' ] );
+```
+
+WordPress's internal types (attachments, templates, reusable blocks, menus) and types without an admin screen are dropped whatever the filter returns. `describe-site` lists the types the user can edit, with what each supports. Add-ons extend each entry with the `jcore_taika_post_type_description` filter, e.g. with its custom fields.
 
 Writes to an existing post need `expected_version` (the `version` from `get-post`, a hash of everything the abilities can edit) and are refused when the post changed since, is locked in the editor, or the block markup would break (`Write_Guard`). Names and schemas are a public contract: add fields, never rename or remove them. Each ability has a schema version, starting at 1; bump it whenever its input gains a field, so the gateway offers the field only to sites that accept it.
 

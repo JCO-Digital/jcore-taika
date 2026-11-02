@@ -18,7 +18,7 @@ Taika is a paid add-on from J&Co Digital. Ask us to enable it for your site.
 
 = Features =
 
-* **Read** posts, pages, categories and tags.
+* **Read** posts, pages, categories and tags, and the custom post types your developer has made available.
 * **Draft** new posts and pages, and edit drafts, including their URL slug and parent page. Nothing becomes visible to visitors until it is published.
 * **Publish** as a separate step that the assistant asks you to confirm.
 * **Upload media** from a web address into the media library, and set it as a post's featured image.

@@ -9,6 +9,7 @@ namespace Jcore\Taika;
 
 use Jcore\Taika\Abilities\Media;
 use Jcore\Taika\Abilities\Posts;
+use Jcore\Taika\Abilities\Site;
 use Jcore\Taika\Abilities\Terms;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -249,6 +250,44 @@ final class Abilities {
 			Registrar::WRITE
 		);
 
+		$core->ability(
+			'describe-site',
+			array(
+				'label'               => __( 'Describe site', 'jcore-taika' ),
+				'description'         => __( 'Returns the site name, language and the post types you can edit here, with what each supports. Add-ons add details such as custom fields.', 'jcore-taika' ),
+				'input_schema'        => Schema::object( array() ),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'name'       => array( 'type' => 'string' ),
+						'url'        => array( 'type' => 'string' ),
+						'language'   => array( 'type' => 'string' ),
+						'post_types' => array(
+							'type'  => 'array',
+							'items' => array(
+								'type'       => 'object',
+								'properties' => array(
+									'name'         => array( 'type' => 'string' ),
+									'label'        => array( 'type' => 'string' ),
+									'hierarchical' => array( 'type' => 'boolean' ),
+									'supports'     => array( 'type' => 'object' ),
+									'taxonomies'   => array(
+										'type'  => 'array',
+										'items' => array( 'type' => 'string' ),
+									),
+									'can_create'   => array( 'type' => 'boolean' ),
+									'can_publish'  => array( 'type' => 'boolean' ),
+								),
+							),
+						),
+					),
+				),
+				'execute_callback'    => array( Site::class, 'describe_site' ),
+				'permission_callback' => array( Site::class, 'can_describe' ),
+			),
+			Registrar::READ
+		);
+
 		/**
 		 * Fires when add-on plugins should register their abilities.
 		 *
@@ -270,9 +309,10 @@ final class Abilities {
 	 */
 	private static function post_type_schema(): array {
 		return array(
-			'type'    => 'string',
-			'enum'    => Posts::POST_TYPES,
-			'default' => 'post',
+			'type'        => 'string',
+			'enum'        => Posts::post_types(),
+			'default'     => 'post',
+			'description' => __( 'post, page, or another post type listed by describe-site.', 'jcore-taika' ),
 		);
 	}
 
