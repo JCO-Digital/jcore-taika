@@ -54,7 +54,7 @@ languages/      .po sources; .pot, .mo and .json are generated
 
 ## Abilities
 
-Registered with the WordPress Abilities API under the `jcore-taika` category, shown at `/wp-json/wp-abilities/v1/`. They are deliberately not offered to the MCP Adapter (`meta.mcp.public` is false): clients reach them only through the gateway. The gateway at `mcp.bojaco.com` calls them with the linked user's Application Password and an `X-Taika-Request-Id` header, which is stored on written posts as `_jcore_taika_request_id`.
+Registered with the WordPress Abilities API under the `jcore-taika` category, shown at `/wp-json/wp-abilities/v1/`. Every ability, core's and add-ons', goes through `Registrar` (`includes/class-registrar.php`), which sets the category, the annotations for its kind and `meta.jcore_taika` (`module`, `schema`). They are deliberately not offered to the MCP Adapter (`meta.mcp.public` is false): clients reach them only through the gateway. The gateway at `mcp.bojaco.com` calls them with the linked user's Application Password and an `X-Taika-Request-Id` header, which is stored on written posts as `_jcore_taika_request_id`.
 
 | Ability | Kind | Capability |
 | --- | --- | --- |
@@ -66,13 +66,51 @@ Registered with the WordPress Abilities API under the `jcore-taika` category, sh
 | `jcore-taika/publish-post` | destructive | `edit_post` + `publish_posts` |
 | `jcore-taika/upload-media` | write | `upload_files` |
 
-Writes to an existing post need `expected_version` (the `version` from `get-post`, a hash of everything the abilities can edit) and are refused when the post changed since, is locked in the editor, or the block markup would break (`Write_Guard`). Names and schemas are a public contract: add fields, never rename or remove them.
+Writes to an existing post need `expected_version` (the `version` from `get-post`, a hash of everything the abilities can edit) and are refused when the post changed since, is locked in the editor, or the block markup would break (`Write_Guard`). Names and schemas are a public contract: add fields, never rename or remove them. Each ability has a schema version, starting at 1; bump it whenever its input gains a field, so the gateway offers the field only to sites that accept it.
+
+## Add-on plugins
+
+Integrations (ACF, WooCommerce, …) ship as separate plugins named `jcore-taika-<name>` that depend on this one. An add-on:
+
+1. Declares `Requires Plugins: jcore-taika` in its header, so WordPress won't activate it without core.
+2. Registers its abilities on the `jcore_taika_register` action, never with `wp_register_ability()` directly:
+
+   ```php
+   use Jcore\Taika\Registrar;
+   use Jcore\Taika\Schema;
+
+   add_action(
+   	'jcore_taika_register',
+   	static function ( Registrar $registrar ): void {
+   		$module = $registrar->module( 'jcore-taika-acf', JCORE_TAIKA_ACF_VERSION );
+
+   		$module->ability(
+   			'get-fields',
+   			array(
+   				'label'               => __( 'Get fields', 'jcore-taika-acf' ),
+   				'description'         => __( 'Returns the custom fields of a post.', 'jcore-taika-acf' ),
+   				'input_schema'        => Schema::object( array( 'id' => Schema::id() ), array( 'id' ) ),
+   				'execute_callback'    => array( Fields::class, 'get_fields' ),
+   				'permission_callback' => array( Fields::class, 'can_edit' ),
+   			),
+   			Registrar::READ, // Or WRITE, or DESTRUCTIVE when visitors see the result.
+   			1                // Schema version.
+   		);
+   	}
+   );
+   ```
+
+3. Marks written posts with `Write_Guard::mark( $post_id )` and uses `Write_Guard::check_version()` for writes to existing content, like core does.
+
+The ability ID is `<module slug>/<name>`. The registrar refuses slugs that don't start with `jcore-taika`, registering the same module twice, and names that aren't lowercase with dashes (each with a `_doing_it_wrong()` notice). It overrides `category`, `show_in_rest`, `annotations` and `mcp` in the ability's `meta`, so no add-on can opt into the MCP Adapter. The site's `/status` then lists the module and its abilities.
+
+The gateway offers an add-on's abilities only after they are in its catalog and staff have enabled them for the site.
 
 ## REST API
 
 | Route | Permission | Purpose |
 | --- | --- | --- |
-| `GET /jcore-taika/v1/status` | public | Plugin version, and whether the Abilities API and Application Passwords are available. The gateway checks it before linking a site. |
+| `GET /jcore-taika/v1/status` | public | Plugin version, whether the Abilities API and Application Passwords are available, and the registered `modules` (slug → version) and `abilities` (ID → schema version). The gateway checks it before linking a site and refreshes what each site offers from it. |
 
 ## Releasing
 
