@@ -4,7 +4,7 @@ Tags: jcore
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -43,7 +43,12 @@ The readable source of the built assets is published at https://github.com/JCO-D
 
 == Changelog ==
 
-= 0.4.0 (2026-11-02) =
+= 0.5.0 (2026-11-02) =
+
+* Feature: abilities - work on custom post types the site opts in
+* Feature: abilities - let add-on plugins register abilities
+
+= v0.4.0 (2026-11-02) =
 
 * Feature: abilities - set slug and parent page on drafts
 
