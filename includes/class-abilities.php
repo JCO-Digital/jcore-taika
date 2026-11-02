@@ -9,6 +9,7 @@ namespace Jcore\Taika;
 
 use Jcore\Taika\Abilities\Media;
 use Jcore\Taika\Abilities\Posts;
+use Jcore\Taika\Abilities\Site;
 use Jcore\Taika\Abilities\Terms;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -16,7 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Declares every ability: its schema, annotations and callbacks.
+ * Declares core's abilities: their schema, kind and callbacks. The registrar
+ * adds the guard rails every Taika ability shares.
  *
  * Ability names and schemas are a public contract with the gateway and its
  * users' saved conversations. Add fields; never rename or remove one. A
@@ -25,9 +27,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Abilities {
 
 	/**
-	 * Ability category and name prefix.
+	 * Ability category, shared with add-ons.
 	 */
-	public const CATEGORY = 'jcore-taika';
+	public const CATEGORY = Registrar::CATEGORY;
 
 	/**
 	 * Hooks registration into the Abilities API's init actions.
@@ -55,17 +57,20 @@ final class Abilities {
 	}
 
 	/**
-	 * Registers every ability.
+	 * Registers core's abilities, then lets add-on plugins register theirs.
 	 *
 	 * @return void
 	 */
 	public static function register_abilities(): void {
-		self::register(
+		$registrar = Registrar::instance();
+		$core      = $registrar->module( 'jcore-taika', JCORE_TAIKA_VERSION );
+
+		$core->ability(
 			'list-posts',
 			array(
 				'label'               => __( 'List posts', 'jcore-taika' ),
 				'description'         => __( 'Lists posts or pages you can edit, most recently modified first, with ID, title, status and modified time. Use it to find a post ID before reading or editing.', 'jcore-taika' ),
-				'input_schema'        => self::object_schema(
+				'input_schema'        => Schema::object(
 					array(
 						'post_type' => self::post_type_schema(),
 						'status'    => array(
@@ -105,28 +110,28 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'list_posts' ),
 				'permission_callback' => array( Posts::class, 'can_list' ),
 			),
-			self::read_only()
+			Registrar::READ
 		);
 
-		self::register(
+		$core->ability(
 			'get-post',
 			array(
 				'label'               => __( 'Get post', 'jcore-taika' ),
 				'description'         => __( 'Returns one post or page with its full content as block markup, plus a version token. Keep the <!-- wp:... --> block comments when editing, and pass version as expected_version to update-post or publish-post.', 'jcore-taika' ),
-				'input_schema'        => self::object_schema( array( 'id' => self::id_schema() ), array( 'id' ) ),
+				'input_schema'        => Schema::object( array( 'id' => Schema::id() ), array( 'id' ) ),
 				'output_schema'       => self::post_detail_schema(),
 				'execute_callback'    => array( Posts::class, 'get_post' ),
 				'permission_callback' => array( Posts::class, 'can_edit' ),
 			),
-			self::read_only()
+			Registrar::READ
 		);
 
-		self::register(
+		$core->ability(
 			'list-terms',
 			array(
 				'label'               => __( 'List categories and tags', 'jcore-taika' ),
 				'description'         => __( 'Lists categories or tags with their IDs. Use category IDs from here when creating or updating posts.', 'jcore-taika' ),
-				'input_schema'        => self::object_schema(
+				'input_schema'        => Schema::object(
 					array(
 						'taxonomy' => array(
 							'type'    => 'string',
@@ -145,15 +150,15 @@ final class Abilities {
 				'execute_callback'    => array( Terms::class, 'list_terms' ),
 				'permission_callback' => array( Terms::class, 'can_list' ),
 			),
-			self::read_only()
+			Registrar::READ
 		);
 
-		self::register(
+		$core->ability(
 			'create-post',
 			array(
 				'label'               => __( 'Create draft', 'jcore-taika' ),
 				'description'         => __( 'Creates a new post or page as a draft, or pending review. It is not visible to visitors until publish-post is used. Write content as block markup. Set slug to choose the URL, and parent to place a page under another page.', 'jcore-taika' ),
-				'input_schema'        => self::object_schema(
+				'input_schema'        => Schema::object(
 					array(
 						'post_type' => self::post_type_schema(),
 						'status'    => self::draft_status_schema(),
@@ -164,17 +169,17 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'create_post' ),
 				'permission_callback' => array( Posts::class, 'can_create' ),
 			),
-			self::write( false )
+			Registrar::WRITE
 		);
 
-		self::register(
+		$core->ability(
 			'update-post',
 			array(
 				'label'               => __( 'Update draft', 'jcore-taika' ),
 				'description'         => __( 'Changes a post or page that is not live yet, including its slug and parent page. Only the fields given are changed. Refuses published posts: use publish-post for those. Fetch the post first and pass its version as expected_version.', 'jcore-taika' ),
-				'input_schema'        => self::object_schema(
+				'input_schema'        => Schema::object(
 					array(
-						'id'               => self::id_schema(),
+						'id'               => Schema::id(),
 						'expected_version' => self::expected_version_schema(),
 						'status'           => self::draft_status_schema(),
 					) + self::content_fields() + self::location_fields(),
@@ -184,17 +189,17 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'update_post' ),
 				'permission_callback' => array( Posts::class, 'can_edit' ),
 			),
-			self::write( false )
+			Registrar::WRITE
 		);
 
-		self::register(
+		$core->ability(
 			'publish-post',
 			array(
 				'label'               => __( 'Publish post', 'jcore-taika' ),
 				'description'         => __( 'Makes a draft visible to visitors, or applies the given changes to a post that is already live. Confirm with the user before calling. Pass the post\'s version as expected_version.', 'jcore-taika' ),
-				'input_schema'        => self::object_schema(
+				'input_schema'        => Schema::object(
 					array(
-						'id'               => self::id_schema(),
+						'id'               => Schema::id(),
 						'expected_version' => self::expected_version_schema(),
 					) + self::content_fields(),
 					array( 'id', 'expected_version' )
@@ -203,15 +208,15 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'publish_post' ),
 				'permission_callback' => array( Posts::class, 'can_publish' ),
 			),
-			self::write( true )
+			Registrar::DESTRUCTIVE
 		);
 
-		self::register(
+		$core->ability(
 			'upload-media',
 			array(
 				'label'               => __( 'Upload media', 'jcore-taika' ),
 				'description'         => __( 'Adds an image or file from a public https URL to the media library and returns its attachment ID and URL.', 'jcore-taika' ),
-				'input_schema'        => self::object_schema(
+				'input_schema'        => Schema::object(
 					array(
 						'url'      => array(
 							'type'        => 'string',
@@ -242,101 +247,59 @@ final class Abilities {
 				'execute_callback'    => array( Media::class, 'upload_media' ),
 				'permission_callback' => array( Media::class, 'can_upload' ),
 			),
-			self::write( false )
+			Registrar::WRITE
 		);
-	}
 
-	/**
-	 * Registers one ability under the plugin's prefix and category.
-	 *
-	 * @param string               $name        Ability name without the prefix.
-	 * @param array<string, mixed> $args        `wp_register_ability()` arguments.
-	 * @param array<string, bool>  $annotations Behaviour annotations.
-	 *
-	 * @return void
-	 */
-	private static function register( string $name, array $args, array $annotations ): void {
-		$args['category'] = self::CATEGORY;
-		$args['meta']     = array(
-			'show_in_rest' => true,
-			'annotations'  => $annotations,
-			// Not offered to the MCP Adapter: Taika's tools are reached only through
-			// the gateway at mcp.bojaco.com, which checks invitations and plans, rate
-			// limits and audits every call. A site that also runs the adapter would
-			// otherwise expose them to anyone with a login, bypassing all of that.
-			'mcp'          => array(
-				'public' => false,
+		$core->ability(
+			'describe-site',
+			array(
+				'label'               => __( 'Describe site', 'jcore-taika' ),
+				'description'         => __( 'Returns the site name, language and the post types you can edit here, with what each supports. Add-ons add details such as custom fields.', 'jcore-taika' ),
+				'input_schema'        => Schema::object( array() ),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'name'       => array( 'type' => 'string' ),
+						'url'        => array( 'type' => 'string' ),
+						'language'   => array( 'type' => 'string' ),
+						'post_types' => array(
+							'type'  => 'array',
+							'items' => array(
+								'type'       => 'object',
+								'properties' => array(
+									'name'         => array( 'type' => 'string' ),
+									'label'        => array( 'type' => 'string' ),
+									'hierarchical' => array( 'type' => 'boolean' ),
+									'supports'     => array( 'type' => 'object' ),
+									'taxonomies'   => array(
+										'type'  => 'array',
+										'items' => array( 'type' => 'string' ),
+									),
+									'can_create'   => array( 'type' => 'boolean' ),
+									'can_publish'  => array( 'type' => 'boolean' ),
+								),
+							),
+						),
+					),
+				),
+				'execute_callback'    => array( Site::class, 'describe_site' ),
+				'permission_callback' => array( Site::class, 'can_describe' ),
 			),
+			Registrar::READ
 		);
 
-		wp_register_ability( self::CATEGORY . '/' . $name, $args );
-	}
-
-	/**
-	 * Annotations for an ability that changes nothing.
-	 *
-	 * @return array<string, bool>
-	 */
-	private static function read_only(): array {
-		return array(
-			'readonly'    => true,
-			'destructive' => false,
-			'idempotent'  => true,
-		);
-	}
-
-	/**
-	 * Annotations for an ability that writes.
-	 *
-	 * @param bool $destructive Whether visitors can see the result.
-	 *
-	 * @return array<string, bool>
-	 */
-	private static function write( bool $destructive ): array {
-		return array(
-			'readonly'    => false,
-			'destructive' => $destructive,
-			'idempotent'  => false,
-		);
-	}
-
-	/**
-	 * An object schema that rejects unknown fields.
-	 *
-	 * The top-level default lets a call with no input reach the callback.
-	 *
-	 * @param array<string, mixed> $properties Property schemas.
-	 * @param string[]             $required   Required property names.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private static function object_schema( array $properties, array $required = array() ): array {
-		$schema = array(
-			'type'                 => 'object',
-			'properties'           => $properties,
-			'additionalProperties' => false,
-		);
-
-		if ( array() === $required ) {
-			$schema['default'] = array();
-		} else {
-			$schema['required'] = $required;
-		}
-
-		return $schema;
-	}
-
-	/**
-	 * Schema for a post ID.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private static function id_schema(): array {
-		return array(
-			'type'        => 'integer',
-			'minimum'     => 1,
-			'description' => __( 'Post or page ID.', 'jcore-taika' ),
-		);
+		/**
+		 * Fires when add-on plugins should register their abilities.
+		 *
+		 * Hook it at file scope or on `plugins_loaded`; it runs while the
+		 * Abilities API is initialising, the only time abilities can be
+		 * registered.
+		 *
+		 * @since 0.5.0
+		 *
+		 * @param Registrar $registrar Registers abilities under a module.
+		 */
+		do_action( 'jcore_taika_register', $registrar );
 	}
 
 	/**
@@ -346,9 +309,10 @@ final class Abilities {
 	 */
 	private static function post_type_schema(): array {
 		return array(
-			'type'    => 'string',
-			'enum'    => Posts::POST_TYPES,
-			'default' => 'post',
+			'type'        => 'string',
+			'enum'        => Posts::post_types(),
+			'default'     => 'post',
+			'description' => __( 'post, page, or another post type listed by describe-site.', 'jcore-taika' ),
 		);
 	}
 

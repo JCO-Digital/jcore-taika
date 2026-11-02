@@ -7,6 +7,8 @@
 
 namespace Jcore\Taika\Rest;
 
+use Jcore\Taika\Registrar;
+use stdClass;
 use WP_REST_Response;
 use WP_REST_Server;
 
@@ -40,17 +42,28 @@ final class Status_Controller extends Controller {
 	}
 
 	/**
-	 * Reports the plugin version and whether linking can work.
+	 * Reports the plugin version, whether linking can work, and which Taika
+	 * modules and abilities the site offers.
+	 *
+	 * `modules` maps each plugin slug to its version and `abilities` maps each
+	 * ability ID to its schema version. The gateway decides from these which
+	 * tools a site gets.
 	 *
 	 * @return WP_REST_Response
 	 */
 	public function get_status(): WP_REST_Response {
+		$abilities_api = function_exists( 'wp_register_ability' );
+		$registrar     = Registrar::instance();
+
 		return rest_ensure_response(
 			array(
 				'plugin'                => 'jcore-taika',
 				'version'               => JCORE_TAIKA_VERSION,
-				'abilities_api'         => function_exists( 'wp_register_ability' ),
+				'abilities_api'         => $abilities_api,
 				'application_passwords' => wp_is_application_passwords_available(),
+				// Objects even when empty, so JSON clients never see [].
+				'modules'               => $abilities_api ? (object) $registrar->modules() : new stdClass(),
+				'abilities'             => $abilities_api ? (object) $registrar->abilities() : new stdClass(),
 			)
 		);
 	}
