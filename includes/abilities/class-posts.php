@@ -151,7 +151,8 @@ final class Posts {
 
 		$error = Write_Guard::check_content( $content )
 			?? self::check_terms( $type, $input )
-			?? self::check_featured_media( $type, $input );
+			?? self::check_featured_media( $type, $input )
+			?? self::check_location( $type, $input );
 		if ( null !== $error ) {
 			return $error;
 		}
@@ -165,7 +166,7 @@ final class Posts {
 					'post_content' => $content,
 					'post_excerpt' => (string) ( $input['excerpt'] ?? '' ),
 					'post_author'  => get_current_user_id(),
-				)
+				) + self::location_changes( $input )
 			),
 			true
 		);
@@ -206,12 +207,13 @@ final class Posts {
 			);
 		}
 
-		$error = self::check_write( $post, $input );
+		$error = self::check_write( $post, $input )
+			?? self::check_location( $post->post_type, $input, $post );
 		if ( null !== $error ) {
 			return $error;
 		}
 
-		$changes = self::content_changes( $input );
+		$changes = self::content_changes( $input ) + self::location_changes( $input );
 		if ( isset( $input['status'] ) ) {
 			$changes['post_status'] = self::draft_status( $input );
 		}
@@ -347,6 +349,90 @@ final class Posts {
 		}
 
 		return $changes;
+	}
+
+	/**
+	 * Maps the slug and parent inputs to post fields.
+	 *
+	 * @param array<string, mixed> $input Ability input, already checked by `check_location()`.
+	 *
+	 * @return array<string, string|int>
+	 */
+	private static function location_changes( array $input ): array {
+		$changes = array();
+
+		if ( isset( $input['slug'] ) && is_string( $input['slug'] ) ) {
+			// A draft may keep a slug another post uses; WordPress makes it
+			// unique when the post is published.
+			$changes['post_name'] = sanitize_title( $input['slug'] );
+		}
+
+		if ( isset( $input['parent'] ) ) {
+			$changes['post_parent'] = (int) $input['parent'];
+		}
+
+		return $changes;
+	}
+
+	/**
+	 * Refuses a slug with no usable characters, or a parent that is not a
+	 * valid page for this post.
+	 *
+	 * @param string               $post_type Post type being written.
+	 * @param array<string, mixed> $input     Ability input.
+	 * @param WP_Post|null         $post      The post being updated, or null for a new post.
+	 *
+	 * @return WP_Error|null
+	 */
+	private static function check_location( string $post_type, array $input, ?WP_Post $post = null ): ?WP_Error {
+		if ( isset( $input['slug'] ) && is_string( $input['slug'] ) && '' !== trim( $input['slug'] ) && '' === sanitize_title( $input['slug'] ) ) {
+			return new WP_Error(
+				'jcore_taika_invalid_slug',
+				__( 'The slug has no letters or numbers that can be used in a URL.', 'jcore-taika' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		if ( ! isset( $input['parent'] ) ) {
+			return null;
+		}
+
+		if ( ! is_post_type_hierarchical( $post_type ) ) {
+			return new WP_Error(
+				'jcore_taika_parent_not_supported',
+				__( 'Only pages can have a parent page.', 'jcore-taika' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$parent_id = (int) $input['parent'];
+		if ( 0 === $parent_id ) {
+			return null;
+		}
+
+		$parent = get_post( $parent_id );
+		if (
+			! $parent instanceof WP_Post
+			|| $parent->post_type !== $post_type
+			|| ! in_array( $parent->post_status, self::LISTED_STATUSES, true )
+			|| ! current_user_can( 'read_post', $parent_id )
+		) {
+			return new WP_Error(
+				'jcore_taika_invalid_parent',
+				__( 'parent must be the ID of an existing page. Use list-posts with post_type page to find it.', 'jcore-taika' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		if ( null !== $post && ( $parent_id === $post->ID || in_array( $post->ID, get_post_ancestors( $parent ), true ) ) ) {
+			return new WP_Error(
+				'jcore_taika_parent_loop',
+				__( 'A page cannot be placed under itself or one of its own subpages.', 'jcore-taika' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		return null;
 	}
 
 	/**
@@ -548,6 +634,8 @@ final class Posts {
 			'type'         => $post->post_type,
 			'title'        => $post->post_title,
 			'status'       => $post->post_status,
+			'slug'         => $post->post_name,
+			'parent'       => (int) $post->post_parent,
 			'author'       => $author ? $author->display_name : '',
 			// WordPress leaves this at zero on a new draft until its first update.
 			'modified_gmt' => '0000-00-00 00:00:00' === $post->post_modified_gmt ? null : $post->post_modified_gmt,

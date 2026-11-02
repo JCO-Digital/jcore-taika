@@ -152,12 +152,12 @@ final class Abilities {
 			'create-post',
 			array(
 				'label'               => __( 'Create draft', 'jcore-taika' ),
-				'description'         => __( 'Creates a new post or page as a draft, or pending review. It is not visible to visitors until publish-post is used. Write content as block markup.', 'jcore-taika' ),
+				'description'         => __( 'Creates a new post or page as a draft, or pending review. It is not visible to visitors until publish-post is used. Write content as block markup. Set slug to choose the URL, and parent to place a page under another page.', 'jcore-taika' ),
 				'input_schema'        => self::object_schema(
 					array(
 						'post_type' => self::post_type_schema(),
 						'status'    => self::draft_status_schema(),
-					) + self::content_fields(),
+					) + self::content_fields() + self::location_fields(),
 					array( 'title' )
 				),
 				'output_schema'       => self::post_detail_schema(),
@@ -171,13 +171,13 @@ final class Abilities {
 			'update-post',
 			array(
 				'label'               => __( 'Update draft', 'jcore-taika' ),
-				'description'         => __( 'Changes a post or page that is not live yet. Only the fields given are changed. Refuses published posts: use publish-post for those. Fetch the post first and pass its version as expected_version.', 'jcore-taika' ),
+				'description'         => __( 'Changes a post or page that is not live yet, including its slug and parent page. Only the fields given are changed. Refuses published posts: use publish-post for those. Fetch the post first and pass its version as expected_version.', 'jcore-taika' ),
 				'input_schema'        => self::object_schema(
 					array(
 						'id'               => self::id_schema(),
 						'expected_version' => self::expected_version_schema(),
 						'status'           => self::draft_status_schema(),
-					) + self::content_fields(),
+					) + self::content_fields() + self::location_fields(),
 					array( 'id', 'expected_version' )
 				),
 				'output_schema'       => self::post_detail_schema(),
@@ -410,6 +410,28 @@ final class Abilities {
 	}
 
 	/**
+	 * Schemas for the fields that decide a post's URL.
+	 *
+	 * Offered only on draft-level writes: changing them on a live post would
+	 * break links to it.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function location_fields(): array {
+		return array(
+			'slug'   => array(
+				'type'        => 'string',
+				'description' => __( 'URL slug, e.g. "contact-us". Empty lets WordPress derive it from the title when the post is published. A number is added if another post already uses it.', 'jcore-taika' ),
+			),
+			'parent' => array(
+				'type'        => 'integer',
+				'minimum'     => 0,
+				'description' => __( 'ID of the parent page, from list-posts with post_type page. 0 makes it a top-level page. Pages only.', 'jcore-taika' ),
+			),
+		);
+	}
+
+	/**
 	 * Output schema for a post in a list.
 	 *
 	 * @return array<string, mixed>
@@ -422,6 +444,14 @@ final class Abilities {
 				'type'         => array( 'type' => 'string' ),
 				'title'        => array( 'type' => 'string' ),
 				'status'       => array( 'type' => 'string' ),
+				'slug'         => array(
+					'type'        => 'string',
+					'description' => __( 'Empty on a draft that has none yet.', 'jcore-taika' ),
+				),
+				'parent'       => array(
+					'type'        => 'integer',
+					'description' => __( 'ID of the parent page, or 0.', 'jcore-taika' ),
+				),
 				'author'       => array( 'type' => 'string' ),
 				'modified_gmt' => array( 'type' => array( 'string', 'null' ) ),
 				'link'         => array( 'type' => 'string' ),
