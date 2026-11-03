@@ -1,0 +1,165 @@
+# Generates a Taika module's taika-tools.json from its release, attaches it to
+# that release, and tells the gateway to read it.
+#
+# Called by every Taika plugin (jcore-taika and its add-ons) after its publish
+# job:
+#
+#   manifest:
+#     needs: [release, publish]
+#     if: needs.release.outputs.is_bumped == 'true'
+#     permissions:
+#       contents: write
+#     uses: JCO-Digital/jcore-taika/.github/workflows/taika-manifest.yml@main
+#     with:
+#       slug: jcore-taika-acf
+#       version: ${{ needs.release.outputs.version }}
+#       wp_plugins: advanced-custom-fields
+#     secrets:
+#       TAIKA_CATALOG_TOKEN: ${{ secrets.TAIKA_CATALOG_TOKEN }}
+#
+# The steps are inline on purpose: a reusable workflow runs in the caller's
+# repository, so it can't read scripts from this one.
+
+name: Taika manifest
+
+on:
+  workflow_call:
+    inputs:
+      slug:
+        description: "Module slug, e.g. jcore-taika-acf. Its release must have <slug>.zip."
+        required: true
+        type: string
+      version:
+        description: "Released version without the v; the release is tagged v<version>."
+        required: true
+        type: string
+      wp_plugins:
+        description: "WordPress.org plugins the module's abilities need active to register (space-separated slugs), e.g. advanced-custom-fields."
+        required: false
+        type: string
+        default: ""
+      gateway_url:
+        description: "Where to ping the gateway."
+        required: false
+        type: string
+        default: "https://mcp.bojaco.com"
+    secrets:
+      TAIKA_CATALOG_TOKEN:
+        description: "Bearer token for the gateway's POST /catalog/refresh. Without it the gateway picks the release up on its daily refresh."
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  manifest:
+    name: Generate and attach taika-tools.json
+    runs-on: ubuntu-24.04
+    env:
+      SLUG: ${{ inputs.slug }}
+      VERSION: ${{ inputs.version }}
+      TAG: v${{ inputs.version }}
+      WP_PLUGINS: ${{ inputs.wp_plugins }}
+    steps:
+      - name: Download the release and jcore-taika
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p zips plugins out
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$SLUG.zip" --dir zips
+          unzip -q "zips/$SLUG.zip" -d plugins
+          if [ "$SLUG" != "jcore-taika" ]; then
+            # Add-ons register through core, so they need it next to them.
+            curl -fsSL -o zips/jcore-taika.zip \
+              https://github.com/JCO-Digital/jcore-taika/releases/latest/download/jcore-taika.zip
+            unzip -q zips/jcore-taika.zip -d plugins
+          fi
+          ls plugins
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Write the blueprint
+        run: |
+          python3 - <<'PY'
+          import json, os
+          slug = os.environ["SLUG"]
+          steps = [
+              {"step": "installPlugin",
+               "pluginData": {"resource": "wordpress.org/plugins", "slug": p},
+               "options": {"activate": True}}
+              for p in os.environ["WP_PLUGINS"].split()
+          ]
+          # Core first: add-ons declare Requires Plugins: jcore-taika.
+          steps.append({"step": "activatePlugin", "pluginPath": "jcore-taika/jcore-taika.php"})
+          if slug != "jcore-taika":
+              steps.append({"step": "activatePlugin", "pluginPath": f"{slug}/{slug}.php"})
+          steps.append({"step": "wp-cli",
+                        "command": f"wp jcore-taika manifest {slug} --output=/out/taika-tools.json"})
+          blueprint = {"preferredVersions": {"php": "8.2", "wp": "latest"},
+                       "features": {"networking": True}, "steps": steps}
+          json.dump(blueprint, open("blueprint.json", "w"), indent=2)
+          PY
+          cat blueprint.json
+
+      - name: Generate the manifest in WordPress Playground
+        run: |
+          mounts=()
+          for plugin in plugins/*/; do
+            name=$(basename "$plugin")
+            mounts+=("--mount=$PWD/plugins/$name:/wordpress/wp-content/plugins/$name")
+          done
+          npx --yes @wp-playground/cli@3.1.57 run-blueprint \
+            --blueprint=blueprint.json "${mounts[@]}" --mount="$PWD/out:/out"
+          test -s out/taika-tools.json
+
+      # The gateway validates it again; this catches a broken release here,
+      # before anything is attached.
+      - name: Check the manifest
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          slug, version = os.environ["SLUG"], os.environ["VERSION"]
+          m = json.load(open("out/taika-tools.json"))
+          problems = []
+          if m.get("format") != 1: problems.append(f"format is {m.get('format')!r}, expected 1")
+          if m.get("module") != slug: problems.append(f"module is {m.get('module')!r}, expected {slug}")
+          if m.get("version") != version: problems.append(f"version is {m.get('version')!r}, expected {version}")
+          tools = m.get("tools") or []
+          names = [t.get("name") for t in tools]
+          if len(set(names)) != len(names): problems.append("tool names repeat")
+          for t in tools:
+              n = t.get("name", "?")
+              if not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", str(t.get("name", ""))): problems.append(f"{n}: bad name")
+              if not str(t.get("ability", "")).startswith(slug + "/"): problems.append(f"{n}: ability {t.get('ability')} is not in {slug}")
+              if t.get("kind") not in ("read", "write", "destructive"): problems.append(f"{n}: kind {t.get('kind')!r}")
+              if not t.get("description") or len(t["description"]) > 2000: problems.append(f"{n}: description missing or too long")
+              if not isinstance(t.get("schema"), int) or t["schema"] < 1: problems.append(f"{n}: schema {t.get('schema')!r}")
+              s = t.get("input_schema")
+              if not isinstance(s, dict) or s.get("type") != "object" or not isinstance(s.get("properties", {}), dict):
+                  problems.append(f"{n}: input_schema is not an object schema")
+          if not tools: print("::warning::The manifest has no tools; was the module's dependency active?")
+          for p in problems: print(f"::error::{p}")
+          print(f"{slug} {version}: {len(tools)} tools: {', '.join(names)}")
+          sys.exit(1 if problems else 0)
+          PY
+
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" out/taika-tools.json --clobber --repo "$GITHUB_REPOSITORY"
+
+      # Only says "look now": the gateway fetches the manifest itself.
+      - name: Tell the gateway
+        env:
+          TOKEN: ${{ secrets.TAIKA_CATALOG_TOKEN }}
+          GATEWAY: ${{ inputs.gateway_url }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::notice::No TAIKA_CATALOG_TOKEN; the gateway picks this release up on its daily refresh."
+            exit 0
+          fi
+          if ! curl -fsS --max-time 30 -X POST -H "authorization: Bearer $TOKEN" "$GATEWAY/catalog/refresh"; then
+            echo "::warning::The gateway did not accept the refresh; it picks this release up on its daily refresh."
+          fi

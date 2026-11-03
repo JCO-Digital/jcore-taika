@@ -141,6 +141,9 @@ Pushing to `main` runs `.github/workflows/release.yml`:
 1. **check** – lint, build, then run Plugin Check against the tree minus `.distignore`. Also runs on pull requests.
 2. **release** – [foonver](https://github.com/foonly/foonver) reads the conventional commits since the last tag, bumps the version, syncs it into `jcore-taika.php`, `readme.txt` and `package.json`, writes the `== Changelog ==` section of `readme.txt` and pushes the tag.
 3. **publish** – the reusable workflow in [jcore-update](https://github.com/JCO-Digital/jcore-update) builds the zip, attaches it to a GitHub release, registers the version with `update.jcore.fi`, pushes to the dist repository and posts to Slack.
+4. **manifest** – `.github/workflows/taika-manifest.yml` downloads the release zip, boots WordPress Playground, runs `wp jcore-taika manifest jcore-taika`, checks the result and attaches `taika-tools.json` to the release. It then pings the gateway (`POST /catalog/refresh`, with the `TAIKA_CATALOG_TOKEN` secret) so it reads the new tools within minutes. Without the secret, or if the ping fails, the gateway's daily refresh picks the release up.
+
+Add-ons call the same workflow from their own `release.yml`, as the comment at the top of `taika-manifest.yml` shows. `wp_plugins` names WordPress.org plugins their abilities need active to register, such as `advanced-custom-fields`. The workflow downloads the latest jcore-taika release for them.
 
 Every commit that reaches `main` produces a release, so work on branches and merge through pull requests. Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/).
 
