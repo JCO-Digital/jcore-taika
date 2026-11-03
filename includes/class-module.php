@@ -45,18 +45,25 @@ final class Module {
 	 * schemas are a public contract: add fields, never rename or remove one.
 	 * A breaking change gets a new ability name.
 	 *
-	 * @param string               $name   Ability name without the module prefix, e.g. get-fields.
-	 * @param array<string, mixed> $args   `wp_register_ability()` arguments.
-	 * @param string               $kind   Registrar::READ, Registrar::WRITE or Registrar::DESTRUCTIVE.
-	 * @param int                  $schema Schema version of the input, starting at 1.
+	 * Pass `$tool` to offer the ability through the gateway: `name` is the MCP
+	 * tool name clients see (get_fields) and `description` what the model
+	 * reads. The tool's title, kind and input schema come from the ability.
+	 * A field added after schema 1 carries `Registrar::SINCE_KEYWORD`
+	 * (`x-taika-since`) with the schema version that accepts it.
+	 *
+	 * @param string                    $name   Ability name without the module prefix, e.g. get-fields.
+	 * @param array<string, mixed>      $args   `wp_register_ability()` arguments.
+	 * @param string                    $kind   Registrar::READ, Registrar::WRITE or Registrar::DESTRUCTIVE.
+	 * @param int                       $schema Schema version of the input, starting at 1.
+	 * @param array<string, mixed>|null $tool   Gateway tool: `name` and `description`; null for none.
 	 *
 	 * @return WP_Ability|null The ability, or null when it was refused.
 	 */
-	public function ability( string $name, array $args, string $kind, int $schema = 1 ): ?WP_Ability {
+	public function ability( string $name, array $args, string $kind, int $schema = 1, ?array $tool = null ): ?WP_Ability {
 		if ( ! $this->valid ) {
 			return null;
 		}
 
-		return $this->registrar->register( $this->slug, $name, $args, $kind, $schema );
+		return $this->registrar->register( $this->slug, $name, $args, $kind, $schema, $tool );
 	}
 }

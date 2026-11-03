@@ -54,6 +54,10 @@ final class Plugin {
 		if ( function_exists( 'wp_register_ability' ) ) {
 			Abilities::init();
 		}
+
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			\WP_CLI::add_command( 'jcore-taika manifest', Cli\Manifest_Command::class );
+		}
 	}
 
 	/**

@@ -103,7 +103,11 @@ Integrations (ACF, WooCommerce, …) ship as separate plugins named `jcore-taika
    				'permission_callback' => array( Fields::class, 'can_edit' ),
    			),
    			Registrar::READ, // Or WRITE, or DESTRUCTIVE when visitors see the result.
-   			1                // Schema version.
+   			1,               // Schema version.
+   			array(           // The gateway tool: its MCP name and what the model reads.
+   				'name'        => 'get_fields',
+   				'description' => 'Returns the custom fields of a post or page, with a version token for update_fields.',
+   			)
    		);
    	}
    );
@@ -113,7 +117,16 @@ Integrations (ACF, WooCommerce, …) ship as separate plugins named `jcore-taika
 
 The ability ID is `<module slug>/<name>`. The registrar refuses slugs that don't start with `jcore-taika`, registering the same module twice, and names that aren't lowercase with dashes (each with a `_doing_it_wrong()` notice). It overrides `category`, `show_in_rest`, `annotations` and `mcp` in the ability's `meta`, so no add-on can opt into the MCP Adapter. The site's `/status` then lists the module and its abilities.
 
-The gateway offers an add-on's abilities only after they are in its catalog and staff have enabled them for the site.
+## Gateway tools
+
+An ability registered with tool metadata (the last argument above) is offered through the gateway as an MCP tool. Its title, kind and input schema come from the ability, and the description is written for the model, naming tools (`publish_post`) rather than abilities. The registrar refuses a tool, with a notice but still registering the ability, when its name isn't lowercase with underscores, is already used by another module, or has no description (at most 2,000 characters).
+
+Two schema keywords are for the gateway; WordPress ignores them:
+
+- `x-taika-since: <schema>` on a field added after the ability's first schema version. The gateway offers that field only to sites at that version or later. It must be between 2 and the ability's schema version.
+- `x-taika-site-enum: true` on an enum whose values differ per site, like `post_type`. The manifest leaves the enum out and the site validates the value.
+
+`wp jcore-taika manifest <module> [--output=<file>]` prints the module's `taika-tools.json`: format, module, version and its tools with their input schemas. Ability names in field descriptions are rewritten to tool names. Each release attaches this file to the module's GitHub release through the shared workflow (see Releasing), and the gateway reads it from there. A new or changed tool reaches the gateway without a gateway release. Add-on tools still start off on every site until staff enable them.
 
 ## REST API
 
