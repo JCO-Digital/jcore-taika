@@ -109,3 +109,18 @@ jobs:
       UPDATE_API_KEY: ${{ secrets.UPDATE_API_KEY }}
       DIST_REPO_SSH_KEY: ${{ secrets.DIST_REPO_SSH_KEY }}
       SLACK_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  # Attaches taika-tools.json to the release and tells the gateway, so new or
+  # changed tools reach it without a gateway release.
+  manifest:
+    name: Gateway tool manifest
+    needs: [release, publish]
+    if: needs.release.outputs.is_bumped == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/taika-manifest.yml
+    with:
+      slug: "jcore-taika"
+      version: ${{ needs.release.outputs.version }}
+    secrets:
+      TAIKA_CATALOG_TOKEN: ${{ secrets.TAIKA_CATALOG_TOKEN }}

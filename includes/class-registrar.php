@@ -64,6 +64,29 @@ final class Registrar {
 	private const NAME_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
 
 	/**
+	 * MCP tool names: what the gateway offers clients, e.g. get_fields.
+	 */
+	private const TOOL_NAME_PATTERN = '/^[a-z][a-z0-9_]{1,63}$/';
+
+	/**
+	 * Longest tool description the gateway accepts.
+	 */
+	private const TOOL_DESCRIPTION_MAX = 2000;
+
+	/**
+	 * Schema keyword marking a field added after the ability's first schema
+	 * version: the gateway offers it only to sites at that version or later.
+	 */
+	public const SINCE_KEYWORD = 'x-taika-since';
+
+	/**
+	 * Schema keyword marking an enum that differs per site (the post types a
+	 * site opts in, for example). The manifest leaves such enums out and the
+	 * site validates the value.
+	 */
+	public const SITE_ENUM_KEYWORD = 'x-taika-site-enum';
+
+	/**
 	 * The single instance.
 	 *
 	 * @var Registrar|null
@@ -83,6 +106,13 @@ final class Registrar {
 	 * @var array<string, int>
 	 */
 	private array $abilities = array();
+
+	/**
+	 * Abilities offered to the gateway as tools: full ability ID => tool.
+	 *
+	 * @var array<string, array{module: string, name: string, description: string, kind: string, schema: int}>
+	 */
+	private array $tools = array();
 
 	/**
 	 * Returns the single instance.
@@ -139,15 +169,16 @@ final class Registrar {
 	 *
 	 * @internal
 	 *
-	 * @param string               $module Module slug, already validated.
-	 * @param string               $name   Ability name without the module prefix.
-	 * @param array<string, mixed> $args   `wp_register_ability()` arguments.
-	 * @param string               $kind   One of the READ, WRITE, DESTRUCTIVE constants.
-	 * @param int                  $schema Schema version of the ability's input.
+	 * @param string                    $module Module slug, already validated.
+	 * @param string                    $name   Ability name without the module prefix.
+	 * @param array<string, mixed>      $args   `wp_register_ability()` arguments.
+	 * @param string                    $kind   One of the READ, WRITE, DESTRUCTIVE constants.
+	 * @param int                       $schema Schema version of the ability's input.
+	 * @param array<string, mixed>|null $tool   Gateway tool: `name` and `description`, or null for none.
 	 *
 	 * @return WP_Ability|null
 	 */
-	public function register( string $module, string $name, array $args, string $kind, int $schema ): ?WP_Ability {
+	public function register( string $module, string $name, array $args, string $kind, int $schema, ?array $tool = null ): ?WP_Ability {
 		$id = $module . '/' . $name;
 
 		if ( 1 !== preg_match( self::NAME_PATTERN, $name ) ) {
@@ -172,6 +203,10 @@ final class Registrar {
 			return null;
 		}
 
+		// A broken tool definition only costs the tool: the ability still
+		// registers, so the site keeps working for other clients.
+		$tool = null === $tool ? null : $this->valid_tool( $id, $tool, $args, $schema );
+
 		$meta = isset( $args['meta'] ) && is_array( $args['meta'] ) ? $args['meta'] : array();
 
 		$args['category'] = self::CATEGORY;
@@ -193,6 +228,7 @@ final class Registrar {
 				'jcore_taika'  => array(
 					'module' => $module,
 					'schema' => $schema,
+					'tool'   => $tool['name'] ?? null,
 				),
 			)
 		);
@@ -201,9 +237,92 @@ final class Registrar {
 
 		if ( null !== $ability ) {
 			$this->abilities[ $id ] = $schema;
+			if ( null !== $tool ) {
+				$this->tools[ $id ] = array(
+					'module'      => $module,
+					'name'        => $tool['name'],
+					'description' => $tool['description'],
+					'kind'        => $kind,
+					'schema'      => $schema,
+				);
+			}
 		}
 
 		return $ability;
+	}
+
+	/**
+	 * Registered abilities offered as gateway tools, in registration order.
+	 *
+	 * @return array<string, array{module: string, name: string, description: string, kind: string, schema: int}> Full ability ID => tool.
+	 */
+	public function tools(): array {
+		self::load();
+
+		return array_filter(
+			$this->tools,
+			static function ( string $id ): bool {
+				return wp_has_ability( $id );
+			},
+			ARRAY_FILTER_USE_KEY
+		);
+	}
+
+	/**
+	 * Checks a tool definition; null (with a notice) when it can't be offered.
+	 *
+	 * @param string               $id     Full ability ID.
+	 * @param array<string, mixed> $tool   `name` and `description`.
+	 * @param array<string, mixed> $args   `wp_register_ability()` arguments.
+	 * @param int                  $schema Schema version of the ability's input.
+	 *
+	 * @return array{name: string, description: string}|null
+	 */
+	private function valid_tool( string $id, array $tool, array $args, int $schema ): ?array {
+		$name        = isset( $tool['name'] ) && is_string( $tool['name'] ) ? $tool['name'] : '';
+		$description = isset( $tool['description'] ) && is_string( $tool['description'] ) ? trim( $tool['description'] ) : '';
+
+		if ( 1 !== preg_match( self::TOOL_NAME_PATTERN, $name ) ) {
+			/* translators: 1: tool name, 2: ability ID. */
+			$this->doing_it_wrong( sprintf( __( 'Tool names use lowercase letters, digits and underscores, like get_fields; %1$s (for %2$s) does not.', 'jcore-taika' ), $name, $id ) );
+
+			return null;
+		}
+
+		foreach ( $this->tools as $other => $registered ) {
+			if ( $registered['name'] === $name ) {
+				/* translators: 1: tool name, 2: ability ID, 3: other ability ID. */
+				$this->doing_it_wrong( sprintf( __( 'The tool name %1$s (for %2$s) is already used by %3$s.', 'jcore-taika' ), $name, $id, $other ) );
+
+				return null;
+			}
+		}
+
+		if ( '' === $description || strlen( $description ) > self::TOOL_DESCRIPTION_MAX ) {
+			/* translators: 1: tool name, 2: maximum length. */
+			$this->doing_it_wrong( sprintf( __( 'The tool %1$s needs a description, at most %2$d characters long.', 'jcore-taika' ), $name, self::TOOL_DESCRIPTION_MAX ) );
+
+			return null;
+		}
+
+		$properties = $args['input_schema']['properties'] ?? array();
+		foreach ( is_array( $properties ) ? $properties : array() as $field => $property ) {
+			if ( ! is_array( $property ) || ! array_key_exists( self::SINCE_KEYWORD, $property ) ) {
+				continue;
+			}
+			$since = $property[ self::SINCE_KEYWORD ];
+			if ( ! is_int( $since ) || $since < 2 || $since > $schema ) {
+				/* translators: 1: field name, 2: tool name, 3: keyword, 4: schema version. */
+				$this->doing_it_wrong( sprintf( __( 'Field %1$s of the tool %2$s has %3$s outside 2 to the schema version of the ability (%4$d).', 'jcore-taika' ), (string) $field, $name, self::SINCE_KEYWORD, $schema ) );
+
+				return null;
+			}
+		}
+
+		return array(
+			'name'        => $name,
+			'description' => $description,
+		);
 	}
 
 	/**

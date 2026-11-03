@@ -59,6 +59,10 @@ final class Abilities {
 	/**
 	 * Registers core's abilities, then lets add-on plugins register theirs.
 	 *
+	 * The tool descriptions are what the gateway's clients read, so they
+	 * name tools (publish_post) rather than abilities, and stay untranslated:
+	 * the gateway serves them to every client in English.
+	 *
 	 * @return void
 	 */
 	public static function register_abilities(): void {
@@ -110,7 +114,12 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'list_posts' ),
 				'permission_callback' => array( Posts::class, 'can_list' ),
 			),
-			Registrar::READ
+			Registrar::READ,
+			1,
+			array(
+				'name'        => 'list_posts',
+				'description' => 'Lists posts, pages or another post type you can edit on a site, most recently modified first, with their slug and parent ID. Use it to find a post ID, or the ID of a parent page.',
+			)
 		);
 
 		$core->ability(
@@ -123,7 +132,12 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'get_post' ),
 				'permission_callback' => array( Posts::class, 'can_edit' ),
 			),
-			Registrar::READ
+			Registrar::READ,
+			1,
+			array(
+				'name'        => 'get_post',
+				'description' => 'Returns one post or page with its full content as block markup, its featured image (featured_media, 0 for none) and a version token. Keep the <!-- wp:... --> comments when editing, and pass version as expected_version when writing.',
+			)
 		);
 
 		$core->ability(
@@ -150,7 +164,12 @@ final class Abilities {
 				'execute_callback'    => array( Terms::class, 'list_terms' ),
 				'permission_callback' => array( Terms::class, 'can_list' ),
 			),
-			Registrar::READ
+			Registrar::READ,
+			1,
+			array(
+				'name'        => 'list_terms',
+				'description' => 'Lists categories or tags on a site with their IDs.',
+			)
 		);
 
 		$core->ability(
@@ -169,7 +188,12 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'create_post' ),
 				'permission_callback' => array( Posts::class, 'can_create' ),
 			),
-			Registrar::WRITE
+			Registrar::WRITE,
+			1,
+			array(
+				'name'        => 'create_post',
+				'description' => 'Creates a post or page as a draft (or pending review). Visitors cannot see it until publish_post is used. Set slug to choose its URL, and parent to place a page under another page.',
+			)
 		);
 
 		$core->ability(
@@ -189,7 +213,12 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'update_post' ),
 				'permission_callback' => array( Posts::class, 'can_edit' ),
 			),
-			Registrar::WRITE
+			Registrar::WRITE,
+			1,
+			array(
+				'name'        => 'update_post',
+				'description' => 'Changes a post or page that is not live yet, including its slug and parent page; only the given fields change. Published posts are refused: use publish_post for those.',
+			)
 		);
 
 		$core->ability(
@@ -208,7 +237,12 @@ final class Abilities {
 				'execute_callback'    => array( Posts::class, 'publish_post' ),
 				'permission_callback' => array( Posts::class, 'can_publish' ),
 			),
-			Registrar::DESTRUCTIVE
+			Registrar::DESTRUCTIVE,
+			1,
+			array(
+				'name'        => 'publish_post',
+				'description' => 'Makes a draft visible to visitors, or applies the given changes to a post that is already live. Confirm with the user first.',
+			)
 		);
 
 		$core->ability(
@@ -247,7 +281,12 @@ final class Abilities {
 				'execute_callback'    => array( Media::class, 'upload_media' ),
 				'permission_callback' => array( Media::class, 'can_upload' ),
 			),
-			Registrar::WRITE
+			Registrar::WRITE,
+			1,
+			array(
+				'name'        => 'upload_media',
+				'description' => 'Adds an image or file from a public https URL to the site media library; returns its attachment ID and URL. To make an image a post\'s featured image, pass its ID as featured_media to create_post, update_post or publish_post.',
+			)
 		);
 
 		$core->ability(
@@ -285,7 +324,12 @@ final class Abilities {
 				'execute_callback'    => array( Site::class, 'describe_site' ),
 				'permission_callback' => array( Site::class, 'can_describe' ),
 			),
-			Registrar::READ
+			Registrar::READ,
+			1,
+			array(
+				'name'        => 'describe_site',
+				'description' => 'Returns the site name and language, and the post types you can edit there with what each supports (title, content, excerpt, featured image, categories and tags, custom fields where an add-on provides them). Use it before working with a post type other than post or page.',
+			)
 		);
 
 		/**
@@ -309,10 +353,13 @@ final class Abilities {
 	 */
 	private static function post_type_schema(): array {
 		return array(
-			'type'        => 'string',
-			'enum'        => Posts::post_types(),
-			'default'     => 'post',
-			'description' => __( 'post, page, or another post type listed by describe-site.', 'jcore-taika' ),
+			'type'                       => 'string',
+			'enum'                       => Posts::post_types(),
+			// Each site opts in its own post types: the gateway leaves the
+			// enum to the site.
+			Registrar::SITE_ENUM_KEYWORD => true,
+			'default'                    => 'post',
+			'description'                => __( 'post, page, or another post type listed by describe-site.', 'jcore-taika' ),
 		);
 	}
 
